@@ -139,8 +139,9 @@ function AnimatedBodyContent({
       new THREE.MeshStandardMaterial({ color: tint, roughness: 0.55, metalness: 0.05 }),
       new THREE.MeshStandardMaterial({
         color: "#d7f7ef",
+        depthWrite: !skeleton,
         transparent: true,
-        opacity: skeleton ? 0.24 : 0.82,
+        opacity: skeleton ? 0.16 : 0.82,
         roughness: 0.62,
       }),
       new THREE.MeshStandardMaterial({ color: "#eef7f4", emissive: "#18443c", emissiveIntensity: 0.25 }),
@@ -220,9 +221,23 @@ function PoseRenderer({
           <DynamicLimb from="leftElbow" material={skeletonMaterial} radius={0.028} to="leftHand" />
           <DynamicLimb from="rightShoulder" material={skeletonMaterial} radius={0.03} to="rightElbow" />
           <DynamicLimb from="rightElbow" material={skeletonMaterial} radius={0.028} to="rightHand" />
+          <DynamicLimb from="chest" material={skeletonMaterial} radius={0.026} to="neck" />
           <DynamicLimb from="leftShoulder" material={skeletonMaterial} radius={0.025} to="rightShoulder" />
           <DynamicLimb from="leftHip" material={skeletonMaterial} radius={0.025} to="rightHip" />
-          {(["leftKnee", "rightKnee", "leftAnkle", "rightAnkle", "leftHip", "rightHip"] as JointKey[]).map((joint) => (
+          {(
+            [
+              "leftKnee",
+              "rightKnee",
+              "leftAnkle",
+              "rightAnkle",
+              "leftHip",
+              "rightHip",
+              "leftElbow",
+              "rightElbow",
+              "leftHand",
+              "rightHand",
+            ] as JointKey[]
+          ).map((joint) => (
             <DynamicSphere joint={joint} key={joint} material={skeletonMaterial} radius={0.052} />
           ))}
         </>
@@ -596,28 +611,25 @@ function getMotionPose(time: number, params: RunnerParams, motionClip: MotionCli
   const frameIndex = Math.floor(frameFloat);
   const nextIndex = (frameIndex + 1) % frames.length;
   const amount = frameFloat - frameIndex;
-  const pose = {} as Pose;
+  const rawPose = {} as Pose;
 
   for (const joint of motionClip.joints) {
     const a = frames[frameIndex].joints[joint];
     const b = frames[nextIndex].joints[joint];
-    pose[joint] = new THREE.Vector3(
+    rawPose[joint] = new THREE.Vector3(
       THREE.MathUtils.lerp(a[0], b[0], amount),
       THREE.MathUtils.lerp(a[1], b[1], amount),
       THREE.MathUtils.lerp(a[2], b[2], amount),
     );
   }
 
+  const pose = retargetMotionPose(rawPose, params);
   const leanOffset = (params.trunkLean - 0.52) * -0.22;
   const bounceOffset = (params.verticalBounce - 0.5) * 0.05 * Math.abs(Math.sin(frameFloat / frames.length * Math.PI * 2));
-  const stepScale = 0.72 + params.stepWidth * 0.58;
   const armScale = 0.78 + params.armSwing * 0.42;
 
   for (const joint of Object.keys(pose) as JointKey[]) {
     pose[joint].y += bounceOffset;
-    if (["leftHip", "rightHip", "leftKnee", "rightKnee", "leftAnkle", "rightAnkle"].includes(joint)) {
-      pose[joint].z *= stepScale;
-    }
     if (["chest", "neck", "head", "leftShoulder", "rightShoulder"].includes(joint)) {
       pose[joint].x += leanOffset;
     }
@@ -633,8 +645,76 @@ function getMotionPose(time: number, params: RunnerParams, motionClip: MotionCli
   function scaleArm(anchorKey: JointKey, targetKey: JointKey, scale: number) {
     const anchor = pose[anchorKey];
     const target = pose[targetKey];
-    target.copy(anchor).add(target.clone().sub(anchor).multiplyScalar(scale));
+    const delta = target.clone().sub(anchor);
+    target.copy(anchor).add(delta.multiplyScalar(scale));
   }
+}
+
+function retargetMotionPose(raw: Pose, params: RunnerParams): Pose {
+  const pose = {} as Pose;
+  const hipWidth = 0.15 + params.stepWidth * 0.11;
+  const shoulderWidth = 0.3;
+  const thighLength = 0.5;
+  const shankLength = 0.49;
+  const upperArmLength = 0.34;
+  const forearmLength = 0.31;
+  const strideScale = 0.82 + params.strideLength * 0.22;
+  const pelvisY = THREE.MathUtils.clamp(raw.pelvis.y, 0.96, 1.12);
+
+  pose.pelvis = new THREE.Vector3(0, pelvisY, 0);
+
+  const trunkDir = directionOr(raw.chest, raw.pelvis, new THREE.Vector3(-0.1, 1, 0));
+  trunkDir.x = THREE.MathUtils.clamp(trunkDir.x, -0.26, 0.1);
+  pose.chest = pose.pelvis.clone().add(trunkDir.normalize().multiplyScalar(0.64));
+  pose.neck = pose.chest.clone().add(new THREE.Vector3(-0.03, 0.34, 0));
+  pose.head = pose.neck.clone().add(new THREE.Vector3(-0.03, 0.18, 0));
+
+  pose.leftHip = pose.pelvis.clone().add(new THREE.Vector3(0.01, -0.09, hipWidth));
+  pose.rightHip = pose.pelvis.clone().add(new THREE.Vector3(0.01, -0.09, -hipWidth));
+  pose.leftShoulder = pose.chest.clone().add(new THREE.Vector3(-0.01, 0.14, shoulderWidth));
+  pose.rightShoulder = pose.chest.clone().add(new THREE.Vector3(-0.01, 0.14, -shoulderWidth));
+
+  retargetLimb("leftHip", "leftKnee", "leftAnkle", thighLength, shankLength, strideScale);
+  retargetLimb("rightHip", "rightKnee", "rightAnkle", thighLength, shankLength, strideScale);
+  retargetArms();
+
+  pose.leftAnkle.y = Math.max(0.07, pose.leftAnkle.y);
+  pose.rightAnkle.y = Math.max(0.07, pose.rightAnkle.y);
+  pose.leftKnee.y = Math.max(pose.leftAnkle.y + 0.16, pose.leftKnee.y);
+  pose.rightKnee.y = Math.max(pose.rightAnkle.y + 0.16, pose.rightKnee.y);
+
+  return pose;
+
+  function retargetLimb(rootKey: JointKey, midKey: JointKey, endKey: JointKey, rootToMid: number, midToEnd: number, xScale: number) {
+    const root = pose[rootKey];
+    const rawRoot = raw[rootKey];
+    const rawMid = raw[midKey];
+    const rawEnd = raw[endKey];
+    const midDir = directionOr(rawMid, rawRoot, new THREE.Vector3(0.15, -1, root.z >= 0 ? 0.05 : -0.05));
+    const endDir = directionOr(rawEnd, rawMid, new THREE.Vector3(0.1, -1, root.z >= 0 ? -0.03 : 0.03));
+    midDir.x *= xScale;
+    endDir.x *= xScale;
+    pose[midKey] = root.clone().add(midDir.normalize().multiplyScalar(rootToMid));
+    pose[endKey] = pose[midKey].clone().add(endDir.normalize().multiplyScalar(midToEnd));
+  }
+
+  function retargetArms() {
+    const legSwing = THREE.MathUtils.clamp((pose.leftAnkle.x - pose.rightAnkle.x) / 0.72, -1, 1);
+    const swing = params.armSwing * 0.34;
+    const elbowBend = 0.18;
+    const elbowDrop = upperArmLength * 0.72;
+    const handDrop = forearmLength * 0.78;
+
+    pose.leftElbow = pose.leftShoulder.clone().add(new THREE.Vector3(-legSwing * swing - elbowBend, -elbowDrop, 0.14));
+    pose.leftHand = pose.leftElbow.clone().add(new THREE.Vector3(-legSwing * swing * 0.62 + elbowBend * 0.45, -handDrop, 0.08));
+    pose.rightElbow = pose.rightShoulder.clone().add(new THREE.Vector3(legSwing * swing - elbowBend, -elbowDrop, -0.14));
+    pose.rightHand = pose.rightElbow.clone().add(new THREE.Vector3(legSwing * swing * 0.62 + elbowBend * 0.45, -handDrop, -0.08));
+  }
+}
+
+function directionOr(to: THREE.Vector3, from: THREE.Vector3, fallback: THREE.Vector3) {
+  const direction = to.clone().sub(from);
+  return direction.lengthSq() > 0.0001 ? direction : fallback.clone();
 }
 
 function footPosition(phase: number, stride: number, params: RunnerParams, z: number) {
