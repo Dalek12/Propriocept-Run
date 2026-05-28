@@ -3,6 +3,25 @@ export type OverlayMode = "skin" | "skeleton" | "muscle" | "force" | "comparison
 export type ViewMode = "side" | "front" | "threeQuarter" | "top";
 export type GaitPhaseName = "stance" | "loading" | "midstance" | "toeOff" | "swing";
 export type InputProviderKind = "manual" | "cameraPose" | "wearableSensor";
+export type MotionSource = "procedural" | "cmu";
+
+export type MotionJointKey =
+  | "pelvis"
+  | "chest"
+  | "neck"
+  | "head"
+  | "leftHip"
+  | "rightHip"
+  | "leftKnee"
+  | "rightKnee"
+  | "leftAnkle"
+  | "rightAnkle"
+  | "leftShoulder"
+  | "rightShoulder"
+  | "leftElbow"
+  | "rightElbow"
+  | "leftHand"
+  | "rightHand";
 
 export interface RunnerParams {
   pace: number;
@@ -50,4 +69,24 @@ export interface RunnerInputProvider {
   kind: InputProviderKind;
   label: string;
   getParams(): RunnerParams;
+}
+
+export interface MotionFrame {
+  index: number;
+  phase: number;
+  joints: Record<MotionJointKey, [number, number, number]>;
+}
+
+export interface MotionClip {
+  id: string;
+  label: string;
+  source: string;
+  subject: string;
+  trial: string;
+  fps: number;
+  frameCount: number;
+  durationSeconds: number;
+  sourceFiles: string[];
+  joints: MotionJointKey[];
+  frames: MotionFrame[];
 }

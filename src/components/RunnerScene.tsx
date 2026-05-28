@@ -2,10 +2,11 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { computeBiomechSignal, footStrikeBias, neutralRunnerParams } from "../biomechanics";
-import type { BiomechSignal, OverlayMode, RunnerParams, ViewMode } from "../types";
+import type { BiomechSignal, MotionClip, OverlayMode, RunnerParams, ViewMode } from "../types";
 
 interface RunnerSceneProps {
   comparison: boolean;
+  motionClip: MotionClip | null;
   overlay: OverlayMode;
   params: RunnerParams;
   referenceParams: RunnerParams;
@@ -19,7 +20,7 @@ const cameraByView: Record<ViewMode, [number, number, number]> = {
   top: [0.1, 7.2, 0.1],
 };
 
-export default function RunnerScene({ comparison, overlay, params, referenceParams, viewMode }: RunnerSceneProps) {
+export default function RunnerScene({ comparison, motionClip, overlay, params, referenceParams, viewMode }: RunnerSceneProps) {
   const cameraPosition = cameraByView[viewMode];
 
   return (
@@ -36,11 +37,11 @@ export default function RunnerScene({ comparison, overlay, params, referencePara
         <TrackLines />
         {comparison ? (
           <>
-            <RunnerFigure label="reference" overlay="muscle" params={referenceParams} side="reference" />
-            <RunnerFigure label="current" overlay={overlay} params={params} side="current" />
+            <RunnerFigure label="reference" motionClip={motionClip} overlay="muscle" params={referenceParams} side="reference" />
+            <RunnerFigure label="current" motionClip={motionClip} overlay={overlay} params={params} side="current" />
           </>
         ) : (
-          <RunnerFigure label="runner" overlay={overlay} params={params} side="single" />
+          <RunnerFigure label="runner" motionClip={motionClip} overlay={overlay} params={params} side="single" />
         )}
       </Canvas>
     </div>
@@ -58,11 +59,13 @@ function CameraRig({ viewMode }: { viewMode: ViewMode }) {
 
 function RunnerFigure({
   label,
+  motionClip,
   overlay,
   params,
   side,
 }: {
   label: string;
+  motionClip: MotionClip | null;
   overlay: OverlayMode;
   params: RunnerParams;
   side: "current" | "reference" | "single";
@@ -79,13 +82,23 @@ function RunnerFigure({
 
   return (
     <group ref={group} position={[labelPosition, 0, 0]}>
-      <RunnerBody overlay={overlay} params={params} tint={tint} />
+      <RunnerBody motionClip={motionClip} overlay={overlay} params={params} tint={tint} />
       <RunnerLabel label={label} />
     </group>
   );
 }
 
-function RunnerBody({ overlay, params, tint }: { overlay: OverlayMode; params: RunnerParams; tint: string }) {
+function RunnerBody({
+  motionClip,
+  overlay,
+  params,
+  tint,
+}: {
+  motionClip: MotionClip | null;
+  overlay: OverlayMode;
+  params: RunnerParams;
+  tint: string;
+}) {
   const body = useRef<THREE.Group>(null);
   const skeleton = overlay === "skeleton" || overlay === "muscle" || overlay === "force" || overlay === "comparison";
   const muscle = overlay === "muscle" || overlay === "comparison";
@@ -94,25 +107,27 @@ function RunnerBody({ overlay, params, tint }: { overlay: OverlayMode; params: R
   useFrame(({ clock }) => {
     if (!body.current) return;
     const t = clock.elapsedTime;
-    body.current.userData.pose = getPose(t, params);
+    body.current.userData.pose = getPose(t, params, motionClip);
     body.current.userData.signal = computeBiomechSignal(t, params);
   });
 
   return (
     <group ref={body}>
-      <AnimatedBodyContent force={force} muscle={muscle} params={params} skeleton={skeleton} tint={tint} />
+      <AnimatedBodyContent force={force} motionClip={motionClip} muscle={muscle} params={params} skeleton={skeleton} tint={tint} />
     </group>
   );
 }
 
 function AnimatedBodyContent({
   force,
+  motionClip,
   muscle,
   params,
   skeleton,
   tint,
 }: {
   force: boolean;
+  motionClip: MotionClip | null;
   muscle: boolean;
   params: RunnerParams;
   skeleton: boolean;
@@ -135,7 +150,7 @@ function AnimatedBodyContent({
 
   useFrame(({ clock }) => {
     if (!root.current) return;
-    const pose = getPose(clock.elapsedTime, params);
+    const pose = getPose(clock.elapsedTime, params, motionClip);
     const signal = computeBiomechSignal(clock.elapsedTime, params);
     root.current.userData.pose = pose;
     root.current.userData.signal = signal;
@@ -146,6 +161,7 @@ function AnimatedBodyContent({
       <PoseRenderer
         force={force}
         limbMaterial={limbMaterial}
+        motionClip={motionClip}
         muscle={muscle}
         params={params}
         skeleton={skeleton}
@@ -159,6 +175,7 @@ function AnimatedBodyContent({
 function PoseRenderer({
   force,
   limbMaterial,
+  motionClip,
   muscle,
   params,
   skeleton,
@@ -167,6 +184,7 @@ function PoseRenderer({
 }: {
   force: boolean;
   limbMaterial: THREE.Material;
+  motionClip: MotionClip | null;
   muscle: boolean;
   params: RunnerParams;
   skeleton: boolean;
@@ -177,7 +195,7 @@ function PoseRenderer({
 
   useFrame(({ clock }) => {
     if (!group.current) return;
-    const pose = getPose(clock.elapsedTime, params);
+    const pose = getPose(clock.elapsedTime, params, motionClip);
     const signal = computeBiomechSignal(clock.elapsedTime, params);
     group.current.children.forEach((child) => {
       child.userData.update?.(pose, signal);
@@ -515,7 +533,9 @@ type Pose = Record<
   THREE.Vector3
 >;
 
-function getPose(time: number, params: RunnerParams): Pose {
+function getPose(time: number, params: RunnerParams, motionClip?: MotionClip | null): Pose {
+  if (motionClip) return getMotionPose(time, params, motionClip);
+
   const cycle = time * (params.cadence / 60) * params.pace * Math.PI;
   const stride = 0.38 + params.strideLength * 0.34;
   const bounce = 0.025 + params.verticalBounce * 0.08;
@@ -567,6 +587,54 @@ function getPose(time: number, params: RunnerParams): Pose {
     leftHand,
     rightHand,
   };
+}
+
+function getMotionPose(time: number, params: RunnerParams, motionClip: MotionClip): Pose {
+  const frames = motionClip.frames;
+  const frameSpeed = params.pace * (params.cadence / 176);
+  const frameFloat = (time * motionClip.fps * frameSpeed) % frames.length;
+  const frameIndex = Math.floor(frameFloat);
+  const nextIndex = (frameIndex + 1) % frames.length;
+  const amount = frameFloat - frameIndex;
+  const pose = {} as Pose;
+
+  for (const joint of motionClip.joints) {
+    const a = frames[frameIndex].joints[joint];
+    const b = frames[nextIndex].joints[joint];
+    pose[joint] = new THREE.Vector3(
+      THREE.MathUtils.lerp(a[0], b[0], amount),
+      THREE.MathUtils.lerp(a[1], b[1], amount),
+      THREE.MathUtils.lerp(a[2], b[2], amount),
+    );
+  }
+
+  const leanOffset = (params.trunkLean - 0.52) * -0.22;
+  const bounceOffset = (params.verticalBounce - 0.5) * 0.05 * Math.abs(Math.sin(frameFloat / frames.length * Math.PI * 2));
+  const stepScale = 0.72 + params.stepWidth * 0.58;
+  const armScale = 0.78 + params.armSwing * 0.42;
+
+  for (const joint of Object.keys(pose) as JointKey[]) {
+    pose[joint].y += bounceOffset;
+    if (["leftHip", "rightHip", "leftKnee", "rightKnee", "leftAnkle", "rightAnkle"].includes(joint)) {
+      pose[joint].z *= stepScale;
+    }
+    if (["chest", "neck", "head", "leftShoulder", "rightShoulder"].includes(joint)) {
+      pose[joint].x += leanOffset;
+    }
+  }
+
+  scaleArm("leftShoulder", "leftElbow", armScale);
+  scaleArm("leftShoulder", "leftHand", armScale);
+  scaleArm("rightShoulder", "rightElbow", armScale);
+  scaleArm("rightShoulder", "rightHand", armScale);
+
+  return pose;
+
+  function scaleArm(anchorKey: JointKey, targetKey: JointKey, scale: number) {
+    const anchor = pose[anchorKey];
+    const target = pose[targetKey];
+    target.copy(anchor).add(target.clone().sub(anchor).multiplyScalar(scale));
+  }
 }
 
 function footPosition(phase: number, stride: number, params: RunnerParams, z: number) {

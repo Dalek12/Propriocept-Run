@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BadgeInfo,
   Bone,
   Camera,
+  Database,
   Footprints,
   Gauge,
   GitCompare,
@@ -14,7 +15,7 @@ import {
 import { computeBiomechSignal, neutralRunnerParams } from "./biomechanics";
 import RunnerScene from "./components/RunnerScene";
 import { runnerPresets } from "./presets";
-import type { FootStrike, OverlayMode, RunnerParams, ViewMode } from "./types";
+import type { FootStrike, MotionClip, MotionSource, OverlayMode, RunnerParams, ViewMode } from "./types";
 
 const overlayOptions: Array<{ id: OverlayMode; label: string; icon: typeof Layers }> = [
   { id: "skin", label: "Body", icon: Layers },
@@ -37,9 +38,30 @@ function App() {
   const [referenceParams] = useState<RunnerParams>(neutralRunnerParams);
   const [overlay, setOverlay] = useState<OverlayMode>("muscle");
   const [viewMode, setViewMode] = useState<ViewMode>("side");
+  const [motionClip, setMotionClip] = useState<MotionClip | null>(null);
+  const [motionSource, setMotionSource] = useState<MotionSource>("cmu");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/mocap/cmu/09_01_run.motion.json")
+      .then((response) => {
+        if (!response.ok) throw new Error(`Motion clip failed to load: ${response.status}`);
+        return response.json() as Promise<MotionClip>;
+      })
+      .then((clip) => {
+        if (!cancelled) setMotionClip(clip);
+      })
+      .catch(() => {
+        if (!cancelled) setMotionSource("procedural");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const previewSignal = useMemo(() => computeBiomechSignal(0.18, params), [params]);
   const compareEnabled = overlay === "comparison";
+  const activeMotionClip = motionSource === "cmu" ? motionClip : null;
 
   const updateParam = <K extends keyof RunnerParams>(key: K, value: RunnerParams[K]) => {
     setParams((next) => ({ ...next, [key]: value }));
@@ -70,6 +92,7 @@ function App() {
         </div>
 
         <RunnerScene
+          motionClip={activeMotionClip}
           overlay={overlay}
           params={params}
           referenceParams={referenceParams}
@@ -83,7 +106,9 @@ function App() {
             <span>
               {compareEnabled
                 ? "Left runner stays efficient; right runner follows the controls."
-                : "The figure is fully parameter-driven and ready for later camera input."}
+                : activeMotionClip
+                  ? `${activeMotionClip.label}: ${activeMotionClip.frameCount} frames at ${activeMotionClip.fps} fps.`
+                  : "The figure is fully parameter-driven and ready for later camera input."}
             </span>
           </div>
           <div className="phase-readout">
@@ -111,6 +136,32 @@ function App() {
                 {preset.name}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="panel-section">
+          <div className="section-heading">
+            <Database size={17} />
+            <h2>Motion source</h2>
+          </div>
+          <div className="view-row">
+            <button
+              aria-pressed={motionSource === "cmu"}
+              className={motionSource === "cmu" ? "view-button active" : "view-button"}
+              disabled={!motionClip}
+              onClick={() => setMotionSource("cmu")}
+              type="button"
+            >
+              CMU mocap
+            </button>
+            <button
+              aria-pressed={motionSource === "procedural"}
+              className={motionSource === "procedural" ? "view-button active" : "view-button"}
+              onClick={() => setMotionSource("procedural")}
+              type="button"
+            >
+              Procedural
+            </button>
           </div>
         </div>
 

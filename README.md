@@ -12,6 +12,7 @@ This is a lean web prototype for an adjustable running-form visualization tool. 
 - Rule-based biomechanics signal layer for gait phase, landing force, knee load, obliques/lats/glutes/hip rotators/spinal stabilizers/calves, overstride, pelvis drop, and crossover alerts.
 - Manual comparison mode with reference runner on the left and current runner on the right.
 - Input-provider stubs for later camera pose and wearable sensor integration.
+- CMU Subject 9 Trial 1 running mocap imported as a normalized browser motion clip.
 
 ## Stack
 
@@ -41,6 +42,25 @@ Build production output:
 npm run build
 ```
 
+Import the current CMU running clip:
+
+```bash
+npm run import:cmu
+```
+
+The importer reads:
+
+- `public/mocap/cmu/09.asf`
+- `public/mocap/cmu/09_01.amc`
+
+and writes:
+
+- `public/mocap/cmu/09_01_run.motion.json`
+
+## Motion Data
+
+The first real motion source is CMU Graphics Lab Motion Capture Database Subject 9, Trial 1. The source ASF/AMC files are kept in `public/mocap/cmu/`, and the app loads the generated JSON motion clip at runtime. The user can switch between the imported CMU mocap path and the original procedural runner.
+
 ## Prototype Resource Plan
 
 Lean v1 target: `$8k-$20k`.
@@ -62,7 +82,7 @@ Camera personalization should come after the visual teaching prototype is compel
 
 Recommended sequence:
 
-1. Replace the procedural body with a cleaned rigged glTF humanoid and production mocap loop.
+1. Clean the CMU mocap loop and decide whether to keep JSON joint playback or move to a glTF humanoid rig.
 2. Validate the rule-based biomechanics signals with a biomechanics consultant.
 3. Add a manual coach mode for saving reference/current presets.
 4. Add MediaPipe Pose Landmarker as a `CameraPoseProvider`.

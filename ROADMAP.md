@@ -16,6 +16,8 @@ The current prototype is a self-contained React + Three.js web app that demonstr
 
 Important limitation: the current runner is procedural. It is useful for proving the visual teaching concept, but it is not yet driven by real runner motion-capture data.
 
+Update: Phase 2 has started with CMU Subject 9 Trial 1. The official ASF/AMC files are stored in `public/mocap/cmu/`, converted with `npm run import:cmu`, and loaded by the app as `09_01_run.motion.json`.
+
 ## What The Original Paper Gives Us
 
 The PDF describes real runner data, but does not include the actual usable dataset.
@@ -65,11 +67,12 @@ Success criteria:
 
 Goal: make the runner move like a real captured human instead of a mathematical figure.
 
-Recommended data path:
+Current data path:
 
-1. Start with animation-oriented mocap for visual realism.
-2. Retarget it onto a clean glTF humanoid.
-3. Preserve the existing parameter controls by blending/warping the motion.
+1. Download official CMU Subject 9 ASF/AMC files.
+2. Convert them into normalized joint-position JSON.
+3. Load the JSON in the browser as a selectable motion source.
+4. Preserve the existing parameter controls by applying offsets to the imported motion.
 
 Candidate sources:
 
@@ -81,9 +84,10 @@ Candidate sources:
 
 Implementation tasks:
 
-- Choose one clean running clip.
-- Convert/retarget to a browser-friendly glTF animation.
-- Replace the procedural limb motion with animation playback.
+- Review CMU Subject 9 Trial 1 visually and decide whether it is demo-worthy.
+- Optionally test another clean CMU run, such as Subject 141 Trial 1 or Subject 102 RunningStraight.
+- Convert/retarget to a browser-friendly glTF animation if the JSON joint playback is not visually polished enough.
+- Continue replacing the procedural limb motion with animation playback.
 - Keep existing controls as modifiers:
   - playback speed for pace
   - gait-cycle phase for overlays
