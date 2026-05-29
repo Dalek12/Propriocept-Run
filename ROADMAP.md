@@ -1,6 +1,6 @@
 # Propriocept Run Prototype Roadmap
 
-Updated: May 19, 2026
+Updated: May 29, 2026
 
 ## Current Prototype Status
 
@@ -17,6 +17,8 @@ The current prototype is a self-contained React + Three.js web app that demonstr
 Important limitation: the current runner is procedural. It is useful for proving the visual teaching concept, but it is not yet driven by real runner motion-capture data.
 
 Update: Phase 2 has started with CMU Subject 9 Trial 1. The official ASF/AMC files are stored in `public/mocap/cmu/`, converted with `npm run import:cmu`, and loaded by the app as `09_01_run.motion.json`.
+
+Current strategy update: the weakest funder-facing part of the prototype is now the visual model quality, especially the body surface, skeleton, and muscle/anatomy overlay. The best lean route is to upgrade the model art before investing heavily in more mocap clips or live camera detection.
 
 ## What The Original Paper Gives Us
 
@@ -62,6 +64,58 @@ Success criteria:
 - Non-technical viewers understand the product concept within 30 seconds.
 - Coaches can explain at least one form correction using the side-by-side view.
 - App runs smoothly in browser on a normal laptop.
+
+### Phase 1.5: Upgrade The Visual Model Before Deeper Motion Work
+
+Goal: make the runner look credible enough that real motion and biomechanics overlays will be worth seeing.
+
+Primary route: best lean route.
+
+- Use a browser-ready rigged humanoid as the base runner.
+- Keep the current procedural runner as a fallback and calibration tool.
+- Add separate visual layers:
+  - clean skin/body surface
+  - simplified skeleton
+  - simplified muscle/anatomy patches
+  - force and joint-emphasis overlays
+- Use open anatomy sources as references or source material, but simplify the meshes before putting them in the app.
+- Avoid trying to ship a full medical anatomy atlas inside the prototype.
+- Keep the style stylized-scientific instead of photorealistic, so the model feels credible without becoming uncanny or too heavy for the browser.
+
+Candidate asset/reference sources:
+
+- MakeHuman / MPFB: best candidate for a permissive rigged human base because core exported assets are CC0.
+- Z-Anatomy: useful anatomy reference and possible mesh source, but it is CC BY-SA, so derivatives may need share-alike treatment.
+- AnatomyTOOL Open 3D Model: useful open anatomy source with web-oriented GLB files, also Creative Commons ShareAlike.
+- BodyParts3D / Anatomography: important underlying anatomy mesh source, but the mesh pipeline will require cleanup and careful license attribution.
+
+Three visual-model routes to keep on the map:
+
+| Route | Use When | Pros | Risks / Cost |
+|---|---|---|---|
+| Best lean route | Current default | Low cost, credible, browser-friendly, legally manageable | Requires simplification and art direction |
+| Fast asset route | We find a ready-made licensed anatomy runner | Quickest visible improvement | Asset may be expensive, too clinical, too heavy, or hard to animate |
+| Premium custom route | Funding arrives or partner demo demands polish | Best brand quality and strongest funder impression | $5k-$20k+ and needs artist/technical animator |
+
+Implementation tasks:
+
+- Add a `ModelSource` or asset configuration layer so the app can switch between procedural, imported humanoid, and future premium model assets.
+- Add GLB loading for the upgraded runner while preserving the existing procedural model as fallback.
+- Create a first simplified muscle overlay for torso, glutes, hip flexors, quads, calves, shoulders, and lats.
+- Drive muscle material emissive intensity from the existing `BiomechSignal` engine.
+- Add a skeleton layer that reads as anatomy, not just stick-figure joints.
+- Run desktop and mobile visual smoke tests after the asset swap.
+
+Success criteria:
+
+- A non-technical viewer immediately understands body, skeleton, muscle, and force layers.
+- Muscle overlay looks intentionally designed rather than decorative.
+- The model remains performant in Chrome/Edge.
+- The same overlay system can be reused later with CMU/KIT motion and camera personalization.
+
+Blender note:
+
+Blender is not required to run the current app or for coding the next app changes. It becomes useful when we need to retarget animations, separate muscles into named meshes, reduce polygon counts, fix materials, or export clean GLB files. If the user does not have Blender installed, the immediate coding route should use ready-to-load GLB assets or CLI conversion first, and only introduce Blender when asset cleanup becomes unavoidable.
 
 ### Phase 2: Replace Procedural Motion With Real Running Animation
 
@@ -217,9 +271,9 @@ Do not buy expensive hardware for v1 unless funding specifically requires it. Th
 
 Highest priority:
 
-1. Add one real mocap running animation.
-2. Add real gait-cycle force/kinematic curves from RBDS or Bath.
-3. Improve anatomy overlay art.
+1. Upgrade the visual runner model and anatomy overlay art.
+2. Add one real mocap running animation.
+3. Add real gait-cycle force/kinematic curves from RBDS or Bath.
 4. Make comparison mode more presentation-ready.
 
 Medium priority:
