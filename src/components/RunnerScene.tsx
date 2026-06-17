@@ -2,11 +2,12 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { computeBiomechSignal, footStrikeBias, neutralRunnerParams } from "../biomechanics";
-import type { BiomechSignal, MotionClip, OverlayMode, RunnerParams, ViewMode } from "../types";
+import type { BiomechSignal, MotionClip, OpenSimSignalDataset, OverlayMode, RunnerParams, ViewMode } from "../types";
 
 interface RunnerSceneProps {
   comparison: boolean;
   motionClip: MotionClip | null;
+  openSimSignals: OpenSimSignalDataset | null;
   overlay: OverlayMode;
   params: RunnerParams;
   referenceParams: RunnerParams;
@@ -20,7 +21,15 @@ const cameraByView: Record<ViewMode, [number, number, number]> = {
   top: [0.1, 7.2, 0.1],
 };
 
-export default function RunnerScene({ comparison, motionClip, overlay, params, referenceParams, viewMode }: RunnerSceneProps) {
+export default function RunnerScene({
+  comparison,
+  motionClip,
+  openSimSignals,
+  overlay,
+  params,
+  referenceParams,
+  viewMode,
+}: RunnerSceneProps) {
   const cameraPosition = cameraByView[viewMode];
 
   return (
@@ -37,11 +46,32 @@ export default function RunnerScene({ comparison, motionClip, overlay, params, r
         <TrackLines />
         {comparison ? (
           <>
-            <RunnerFigure label="reference" motionClip={motionClip} overlay="muscle" params={referenceParams} side="reference" />
-            <RunnerFigure label="current" motionClip={motionClip} overlay={overlay} params={params} side="current" />
+            <RunnerFigure
+              label="reference"
+              motionClip={motionClip}
+              openSimSignals={openSimSignals}
+              overlay="muscle"
+              params={referenceParams}
+              side="reference"
+            />
+            <RunnerFigure
+              label="current"
+              motionClip={motionClip}
+              openSimSignals={openSimSignals}
+              overlay={overlay}
+              params={params}
+              side="current"
+            />
           </>
         ) : (
-          <RunnerFigure label="runner" motionClip={motionClip} overlay={overlay} params={params} side="single" />
+          <RunnerFigure
+            label="runner"
+            motionClip={motionClip}
+            openSimSignals={openSimSignals}
+            overlay={overlay}
+            params={params}
+            side="single"
+          />
         )}
       </Canvas>
     </div>
@@ -60,12 +90,14 @@ function CameraRig({ viewMode }: { viewMode: ViewMode }) {
 function RunnerFigure({
   label,
   motionClip,
+  openSimSignals,
   overlay,
   params,
   side,
 }: {
   label: string;
   motionClip: MotionClip | null;
+  openSimSignals: OpenSimSignalDataset | null;
   overlay: OverlayMode;
   params: RunnerParams;
   side: "current" | "reference" | "single";
@@ -82,7 +114,7 @@ function RunnerFigure({
 
   return (
     <group ref={group} position={[labelPosition, 0, 0]}>
-      <RunnerBody motionClip={motionClip} overlay={overlay} params={params} tint={tint} />
+      <RunnerBody motionClip={motionClip} openSimSignals={openSimSignals} overlay={overlay} params={params} tint={tint} />
       <RunnerLabel label={label} />
     </group>
   );
@@ -90,11 +122,13 @@ function RunnerFigure({
 
 function RunnerBody({
   motionClip,
+  openSimSignals,
   overlay,
   params,
   tint,
 }: {
   motionClip: MotionClip | null;
+  openSimSignals: OpenSimSignalDataset | null;
   overlay: OverlayMode;
   params: RunnerParams;
   tint: string;
@@ -108,12 +142,20 @@ function RunnerBody({
     if (!body.current) return;
     const t = clock.elapsedTime;
     body.current.userData.pose = getPose(t, params, motionClip);
-    body.current.userData.signal = computeBiomechSignal(t, params);
+    body.current.userData.signal = computeBiomechSignal(t, params, openSimSignals);
   });
 
   return (
     <group ref={body}>
-      <AnimatedBodyContent force={force} motionClip={motionClip} muscle={muscle} params={params} skeleton={skeleton} tint={tint} />
+      <AnimatedBodyContent
+        force={force}
+        motionClip={motionClip}
+        muscle={muscle}
+        openSimSignals={openSimSignals}
+        params={params}
+        skeleton={skeleton}
+        tint={tint}
+      />
     </group>
   );
 }
@@ -122,6 +164,7 @@ function AnimatedBodyContent({
   force,
   motionClip,
   muscle,
+  openSimSignals,
   params,
   skeleton,
   tint,
@@ -129,6 +172,7 @@ function AnimatedBodyContent({
   force: boolean;
   motionClip: MotionClip | null;
   muscle: boolean;
+  openSimSignals: OpenSimSignalDataset | null;
   params: RunnerParams;
   skeleton: boolean;
   tint: string;
@@ -152,7 +196,7 @@ function AnimatedBodyContent({
   useFrame(({ clock }) => {
     if (!root.current) return;
     const pose = getPose(clock.elapsedTime, params, motionClip);
-    const signal = computeBiomechSignal(clock.elapsedTime, params);
+    const signal = computeBiomechSignal(clock.elapsedTime, params, openSimSignals);
     root.current.userData.pose = pose;
     root.current.userData.signal = signal;
   });
@@ -164,6 +208,7 @@ function AnimatedBodyContent({
         limbMaterial={limbMaterial}
         motionClip={motionClip}
         muscle={muscle}
+        openSimSignals={openSimSignals}
         params={params}
         skeleton={skeleton}
         skeletonMaterial={skeletonMaterial}
@@ -178,6 +223,7 @@ function PoseRenderer({
   limbMaterial,
   motionClip,
   muscle,
+  openSimSignals,
   params,
   skeleton,
   skeletonMaterial,
@@ -187,6 +233,7 @@ function PoseRenderer({
   limbMaterial: THREE.Material;
   motionClip: MotionClip | null;
   muscle: boolean;
+  openSimSignals: OpenSimSignalDataset | null;
   params: RunnerParams;
   skeleton: boolean;
   skeletonMaterial: THREE.Material;
@@ -197,7 +244,7 @@ function PoseRenderer({
   useFrame(({ clock }) => {
     if (!group.current) return;
     const pose = getPose(clock.elapsedTime, params, motionClip);
-    const signal = computeBiomechSignal(clock.elapsedTime, params);
+    const signal = computeBiomechSignal(clock.elapsedTime, params, openSimSignals);
     group.current.children.forEach((child) => {
       child.userData.update?.(pose, signal);
     });

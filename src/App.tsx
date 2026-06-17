@@ -15,7 +15,7 @@ import {
 import { computeBiomechSignal, neutralRunnerParams } from "./biomechanics";
 import RunnerScene from "./components/RunnerScene";
 import { runnerPresets } from "./presets";
-import type { FootStrike, MotionClip, MotionSource, OverlayMode, RunnerParams, ViewMode } from "./types";
+import type { FootStrike, MotionClip, MotionSource, OpenSimSignalDataset, OverlayMode, RunnerParams, ViewMode } from "./types";
 
 const overlayOptions: Array<{ id: OverlayMode; label: string; icon: typeof Layers }> = [
   { id: "skin", label: "Body", icon: Layers },
@@ -40,6 +40,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("side");
   const [motionClip, setMotionClip] = useState<MotionClip | null>(null);
   const [motionSource, setMotionSource] = useState<MotionSource>("cmu");
+  const [openSimSignals, setOpenSimSignals] = useState<OpenSimSignalDataset | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +60,25 @@ function App() {
     };
   }, []);
 
-  const previewSignal = useMemo(() => computeBiomechSignal(0.18, params), [params]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/biomechanics/opensim_hamner_subject02_cycle02.signals.json")
+      .then((response) => {
+        if (!response.ok) throw new Error(`OpenSim signals failed to load: ${response.status}`);
+        return response.json() as Promise<OpenSimSignalDataset>;
+      })
+      .then((signals) => {
+        if (!cancelled) setOpenSimSignals(signals);
+      })
+      .catch(() => {
+        if (!cancelled) setOpenSimSignals(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const previewSignal = useMemo(() => computeBiomechSignal(0.18, params, openSimSignals), [params, openSimSignals]);
   const compareEnabled = overlay === "comparison";
   const activeMotionClip = motionSource === "cmu" ? motionClip : null;
 
@@ -98,6 +117,7 @@ function App() {
           referenceParams={referenceParams}
           viewMode={viewMode}
           comparison={compareEnabled}
+          openSimSignals={openSimSignals}
         />
 
         <div className="stage-footer">
@@ -109,6 +129,7 @@ function App() {
                 : activeMotionClip
                   ? `${activeMotionClip.label}: ${activeMotionClip.frameCount} frames at ${activeMotionClip.fps} fps.`
                   : "The figure is fully parameter-driven and ready for later camera input."}
+              {openSimSignals ? ` Biomechanics overlay: ${openSimSignals.label}.` : ""}
             </span>
           </div>
           <div className="phase-readout">

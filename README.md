@@ -57,9 +57,29 @@ and writes:
 
 - `public/mocap/cmu/09_01_run.motion.json`
 
+Import the current OpenSim-derived biomechanics signal curves:
+
+```bash
+npm run import:opensim
+```
+
+The importer reads local, uncommitted OpenSim files from:
+
+- `RunningSimulation_simTK/RRA/RRA_cycle02_results_07/subject02_running_RRA_Kinematics_q.mot`
+- `RunningSimulation_simTK/CMC/CMC_Results/subject02_running_CMC_states_degrees.mot`
+- `RunningSimulation_simTK/subject02_running_grf.mot`
+
+and writes:
+
+- `public/biomechanics/opensim_hamner_subject02_cycle02.signals.json`
+
 ## Motion Data
 
 The first real motion source is CMU Graphics Lab Motion Capture Database Subject 9, Trial 1. The source ASF/AMC files are kept in `public/mocap/cmu/`, and the app loads the generated JSON motion clip at runtime. The user can switch between the imported CMU mocap path and the original procedural runner.
+
+## Biomechanics Data
+
+The first real biomechanics source is the Hamner/Seth/Delp OpenSim running simulation package from SimTK. The raw download folders are ignored by Git; the app loads a derived lightweight JSON signal file for force and muscle-overlay timing. These signals are educational visualization curves, not clinical measurements.
 
 ## Prototype Resource Plan
 

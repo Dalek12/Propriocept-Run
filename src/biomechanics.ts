@@ -1,4 +1,4 @@
-import type { BiomechSignal, FootStrike, GaitPhase, RunnerParams } from "./types";
+import type { BiomechSignal, FootStrike, GaitPhase, OpenSimSignalDataset, OpenSimSignalSample, RunnerParams } from "./types";
 
 export const neutralRunnerParams: RunnerParams = {
   pace: 1,
@@ -60,7 +60,7 @@ export function getGaitPhase(time: number, params: RunnerParams): GaitPhase {
   };
 }
 
-export function computeBiomechSignal(time: number, params: RunnerParams): BiomechSignal {
+export function computeBiomechSignal(time: number, params: RunnerParams, openSimSignals?: OpenSimSignalDataset | null): BiomechSignal {
   const gait = getGaitPhase(time, params);
   const cycle = gait.progress * Math.PI * 2;
   const loadingPulse = pulse(gait.progress, 0.03, 0.1) + pulse(gait.progress, 0.53, 0.1);
@@ -77,24 +77,75 @@ export function computeBiomechSignal(time: number, params: RunnerParams): Biomec
       (0.55 + params.verticalBounce * 0.32 + overstride * 0.35 + footStrikeBias(params.footStrike) * 0.2),
   );
 
+  const openSim = sampleOpenSimSignals(openSimSignals, gait.progress);
+  const dataLandingForce = openSim
+    ? clamp01(openSim.forces.totalVerticalNormalized * (0.72 + params.verticalBounce * 0.18 + overstride * 0.24))
+    : landingForce;
+  const dataObliques = openSim ? clamp01(openSim.muscleGroups.obliques * 0.82 + torsoSystem * 0.22) : null;
+  const dataGlutes = openSim
+    ? clamp01(openSim.muscleGroups.glutes * (0.62 + params.trunkLean * 0.18 + params.pelvisRotation * 0.16) + toeOffPulse * 0.12)
+    : null;
+  const dataHipRotators = openSim
+    ? clamp01(openSim.muscleGroups.hipRotators * 0.72 + pelvisAlert * 0.48 + crossover * 0.26)
+    : null;
+  const dataSpinalStabilizers = openSim
+    ? clamp01(openSim.muscleGroups.spinalStabilizers * 0.76 + torsoSystem * 0.18 + pelvisAlert * 0.34)
+    : null;
+  const dataCalves = openSim
+    ? clamp01(openSim.muscleGroups.calves * (params.footStrike === "forefoot" ? 1 : 0.78) + toeOffPulse * 0.12)
+    : null;
+
   return {
     gait,
-    obliques: clamp01(torsoSystem * 0.92 + params.trunkLean * 0.14),
+    obliques: dataObliques ?? clamp01(torsoSystem * 0.92 + params.trunkLean * 0.14),
     lats: clamp01(torsoSystem * params.armSwing),
-    glutes: clamp01(toeOffPulse * (0.54 + params.trunkLean * 0.28 + params.pelvisRotation * 0.22)),
-    hipRotators: clamp01(torsoSystem * 0.55 + pelvisAlert * 0.6 + crossover * 0.35),
-    spinalStabilizers: clamp01(torsoSystem * 0.5 + params.verticalBounce * 0.24 + pelvisAlert * 0.5),
-    calves: clamp01(toeOffPulse * (params.footStrike === "forefoot" ? 1 : 0.74)),
-    kneeLoad: clamp01(landingForce * 0.58 + overstride * 0.48 + pelvisAlert * 0.3),
-    landingForce,
+    glutes: dataGlutes ?? clamp01(toeOffPulse * (0.54 + params.trunkLean * 0.28 + params.pelvisRotation * 0.22)),
+    hipRotators: dataHipRotators ?? clamp01(torsoSystem * 0.55 + pelvisAlert * 0.6 + crossover * 0.35),
+    spinalStabilizers:
+      dataSpinalStabilizers ?? clamp01(torsoSystem * 0.5 + params.verticalBounce * 0.24 + pelvisAlert * 0.5),
+    calves: dataCalves ?? clamp01(toeOffPulse * (params.footStrike === "forefoot" ? 1 : 0.74)),
+    kneeLoad: clamp01(dataLandingForce * 0.58 + overstride * 0.48 + pelvisAlert * 0.3),
+    landingForce: dataLandingForce,
     pelvisDropAlert: pelvisAlert,
     overstrideAlert: overstride,
     crossoverAlert: crossover,
   };
 }
 
+export function sampleOpenSimSignals(
+  dataset: OpenSimSignalDataset | null | undefined,
+  phase: number,
+): OpenSimSignalSample | null {
+  if (!dataset?.samples.length) return null;
+  const samples = dataset.samples;
+  const wrappedPhase = ((phase % 1) + 1) % 1;
+  const scaled = wrappedPhase * (samples.length - 1);
+  const lowIndex = Math.floor(scaled);
+  const highIndex = Math.min(samples.length - 1, lowIndex + 1);
+  const amount = scaled - lowIndex;
+  return blendOpenSimSamples(samples[lowIndex], samples[highIndex], amount);
+}
+
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
+}
+
+function blendOpenSimSamples(a: OpenSimSignalSample, b: OpenSimSignalSample, amount: number): OpenSimSignalSample {
+  return {
+    phase: lerp(a.phase, b.phase, amount),
+    time: lerp(a.time, b.time, amount),
+    kinematics: blendRecord(a.kinematics, b.kinematics, amount),
+    forces: blendRecord(a.forces, b.forces, amount) as OpenSimSignalSample["forces"],
+    muscleGroups: blendRecord(a.muscleGroups, b.muscleGroups, amount) as OpenSimSignalSample["muscleGroups"],
+  };
+}
+
+function blendRecord(a: Record<string, number>, b: Record<string, number>, amount: number) {
+  const result: Record<string, number> = {};
+  for (const key of Object.keys(a)) {
+    result[key] = lerp(a[key], b[key] ?? a[key], amount);
+  }
+  return result;
 }
 
 function pulse(progress: number, center: number, width: number) {

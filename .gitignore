@@ -4,6 +4,7 @@ dist/
 vite.config.js
 vite.config.d.ts
 smoke-*.png
+*-smoke*.log
 debug.log
 RunningSimulation_simTK/
 02FullBodyModel-latest/
