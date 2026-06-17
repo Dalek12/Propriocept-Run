@@ -10,6 +10,7 @@ This is a lean web prototype for an adjustable running-form visualization tool. 
 - Overlay modes for body, skeleton, muscles, force signals, and comparison.
 - Adjustable controls for pace, cadence, stride length, vertical bounce, trunk lean, arm swing, pelvis rotation, shoulder-pelvis counter-rotation, pelvis drop, step width, and foot strike.
 - Rule-based biomechanics signal layer for gait phase, landing force, knee load, obliques/lats/glutes/hip rotators/spinal stabilizers/calves, overstride, pelvis drop, and crossover alerts.
+- Textured stylized anatomy overlays with ivory bone material, rib/pelvis hints, and OpenSim-driven muscle groups for glutes, hip rotators, hip flexors, quads, hamstrings, calves, tibialis anterior, obliques, and spinal stabilizers.
 - Manual comparison mode with reference runner on the left and current runner on the right.
 - Input-provider stubs for later camera pose and wearable sensor integration.
 - CMU Subject 9 Trial 1 running mocap imported as a normalized browser motion clip.

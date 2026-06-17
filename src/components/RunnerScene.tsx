@@ -179,17 +179,28 @@ function AnimatedBodyContent({
 }) {
   const root = useRef<THREE.Group>(null);
   const [limbMaterial, skinMaterial, skeletonMaterial] = useMemo(
-    () => [
-      new THREE.MeshStandardMaterial({ color: tint, roughness: 0.55, metalness: 0.05 }),
-      new THREE.MeshStandardMaterial({
+    () => {
+      const skinTexture = createSkinTexture();
+      const boneTexture = createBoneTexture();
+      return [
+        new THREE.MeshStandardMaterial({ color: tint, map: skinTexture, roughness: 0.55, metalness: 0.05 }),
+        new THREE.MeshStandardMaterial({
         color: "#d7f7ef",
+        map: skinTexture,
         depthWrite: !skeleton,
         transparent: true,
         opacity: skeleton ? 0.16 : 0.82,
         roughness: 0.62,
       }),
-      new THREE.MeshStandardMaterial({ color: "#eef7f4", emissive: "#18443c", emissiveIntensity: 0.25 }),
-    ],
+        new THREE.MeshStandardMaterial({
+          color: "#f2ead7",
+          map: boneTexture,
+          emissive: "#3d3425",
+          emissiveIntensity: 0.18,
+          roughness: 0.72,
+        }),
+      ];
+    },
     [skeleton, tint],
   );
 
@@ -271,6 +282,9 @@ function PoseRenderer({
           <DynamicLimb from="chest" material={skeletonMaterial} radius={0.026} to="neck" />
           <DynamicLimb from="leftShoulder" material={skeletonMaterial} radius={0.025} to="rightShoulder" />
           <DynamicLimb from="leftHip" material={skeletonMaterial} radius={0.025} to="rightHip" />
+          <RibCage material={skeletonMaterial} />
+          <PelvisBone material={skeletonMaterial} />
+          <DynamicBoneMass joint="head" material={skeletonMaterial} radius={0.13} scale={[0.82, 1.05, 0.9]} />
           {(
             [
               "leftKnee",
@@ -378,46 +392,144 @@ function DynamicSphere({
 }
 
 function MuscleOverlay() {
-  const muscleMaterial = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: "#ff6d4d",
-        emissive: "#ff3b1f",
-        emissiveIntensity: 1,
-        transparent: true,
-        opacity: 0.76,
-        roughness: 0.35,
-      }),
-    [],
-  );
+  const muscleTexture = useMemo(() => createMuscleFiberTexture(), []);
+
   return (
     <>
-      <SignalMuscle joint="chest" material={muscleMaterial} signalKey="obliques" scale={[0.42, 0.2, 0.72]} offset={[0.04, -0.1, 0]} />
-      <SignalMuscle joint="chest" material={muscleMaterial} signalKey="lats" scale={[0.24, 0.34, 0.88]} offset={[-0.08, 0.02, 0]} />
-      <SignalMuscle joint="pelvis" material={muscleMaterial} signalKey="glutes" scale={[0.34, 0.2, 0.68]} offset={[-0.08, -0.02, 0]} />
-      <SignalMuscle joint="pelvis" material={muscleMaterial} signalKey="hipRotators" scale={[0.42, 0.16, 0.82]} offset={[0.02, 0, 0]} />
-      <SignalMuscle joint="chest" material={muscleMaterial} signalKey="spinalStabilizers" scale={[0.18, 0.46, 0.38]} offset={[-0.18, 0.04, 0]} />
-      <SignalMuscle joint="leftAnkle" material={muscleMaterial} signalKey="calves" scale={[0.14, 0.26, 0.14]} offset={[0, 0.25, 0]} />
-      <SignalMuscle joint="rightAnkle" material={muscleMaterial} signalKey="calves" scale={[0.14, 0.26, 0.14]} offset={[0, 0.25, 0]} />
-      <SignalMuscle joint="leftKnee" material={muscleMaterial} signalKey="kneeLoad" scale={[0.16, 0.16, 0.16]} offset={[0, 0, 0]} />
-      <SignalMuscle joint="rightKnee" material={muscleMaterial} signalKey="kneeLoad" scale={[0.16, 0.16, 0.16]} offset={[0, 0, 0]} />
+      <SignalMuscle
+        joint="chest"
+        signalKey="obliques"
+        scale={[0.42, 0.2, 0.72]}
+        offset={[0.04, -0.1, 0]}
+        texture={muscleTexture}
+      />
+      <SignalMuscle
+        color="#c94d34"
+        joint="chest"
+        signalKey="lats"
+        scale={[0.24, 0.34, 0.88]}
+        offset={[-0.08, 0.02, 0]}
+        texture={muscleTexture}
+      />
+      <SignalMuscle
+        color="#e65a42"
+        joint="pelvis"
+        signalKey="glutes"
+        scale={[0.34, 0.2, 0.68]}
+        offset={[-0.08, -0.02, 0]}
+        texture={muscleTexture}
+      />
+      <SignalMuscle
+        color="#e06249"
+        joint="pelvis"
+        signalKey="hipRotators"
+        scale={[0.42, 0.16, 0.82]}
+        offset={[0.02, 0, 0]}
+        texture={muscleTexture}
+      />
+      <SignalMuscle
+        color="#b63c31"
+        joint="chest"
+        signalKey="spinalStabilizers"
+        scale={[0.18, 0.46, 0.38]}
+        offset={[-0.18, 0.04, 0]}
+        texture={muscleTexture}
+      />
+      <SignalLimbMuscle from="leftHip" signalKey="quads" texture={muscleTexture} to="leftKnee" offset={[0.06, 0, 0.02]} />
+      <SignalLimbMuscle from="rightHip" signalKey="quads" texture={muscleTexture} to="rightKnee" offset={[0.06, 0, -0.02]} />
+      <SignalLimbMuscle
+        color="#b94636"
+        from="leftHip"
+        signalKey="hamstrings"
+        texture={muscleTexture}
+        to="leftKnee"
+        offset={[-0.06, 0, 0.02]}
+      />
+      <SignalLimbMuscle
+        color="#b94636"
+        from="rightHip"
+        signalKey="hamstrings"
+        texture={muscleTexture}
+        to="rightKnee"
+        offset={[-0.06, 0, -0.02]}
+      />
+      <SignalLimbMuscle
+        color="#f06f4f"
+        from="pelvis"
+        signalKey="hipFlexors"
+        texture={muscleTexture}
+        to="leftHip"
+        offset={[0.08, -0.04, 0.04]}
+        width={0.13}
+      />
+      <SignalLimbMuscle
+        color="#f06f4f"
+        from="pelvis"
+        signalKey="hipFlexors"
+        texture={muscleTexture}
+        to="rightHip"
+        offset={[0.08, -0.04, -0.04]}
+        width={0.13}
+      />
+      <SignalLimbMuscle
+        color="#d84e35"
+        from="leftKnee"
+        signalKey="calves"
+        texture={muscleTexture}
+        to="leftAnkle"
+        offset={[-0.04, 0.02, 0.02]}
+        width={0.12}
+      />
+      <SignalLimbMuscle
+        color="#d84e35"
+        from="rightKnee"
+        signalKey="calves"
+        texture={muscleTexture}
+        to="rightAnkle"
+        offset={[-0.04, 0.02, -0.02]}
+        width={0.12}
+      />
+      <SignalLimbMuscle
+        color="#ff8a60"
+        from="leftKnee"
+        signalKey="tibialisAnterior"
+        texture={muscleTexture}
+        to="leftAnkle"
+        offset={[0.05, 0.02, 0.03]}
+        width={0.08}
+      />
+      <SignalLimbMuscle
+        color="#ff8a60"
+        from="rightKnee"
+        signalKey="tibialisAnterior"
+        texture={muscleTexture}
+        to="rightAnkle"
+        offset={[0.05, 0.02, -0.03]}
+        width={0.08}
+      />
+      <SignalMuscle joint="leftKnee" signalKey="kneeLoad" scale={[0.16, 0.16, 0.16]} offset={[0, 0, 0]} texture={muscleTexture} />
+      <SignalMuscle joint="rightKnee" signalKey="kneeLoad" scale={[0.16, 0.16, 0.16]} offset={[0, 0, 0]} texture={muscleTexture} />
     </>
   );
 }
 
 function SignalMuscle({
+  color = "#ff6d4d",
   joint,
-  material,
   offset,
   scale,
   signalKey,
+  texture,
 }: {
+  color?: string;
   joint: JointKey;
-  material: THREE.MeshStandardMaterial;
   offset: [number, number, number];
   scale: [number, number, number];
   signalKey: keyof Omit<BiomechSignal, "gait">;
+  texture: THREE.Texture;
 }) {
+  const material = useMemo(() => createMuscleMaterial(texture, color), [color, texture]);
+
   return (
     <mesh
       material={material}
@@ -435,6 +547,238 @@ function SignalMuscle({
       <sphereGeometry args={[1, 24, 16]} />
     </mesh>
   );
+}
+
+function SignalLimbMuscle({
+  color = "#ff6d4d",
+  from,
+  offset,
+  signalKey,
+  texture,
+  to,
+  width = 0.1,
+}: {
+  color?: string;
+  from: JointKey;
+  offset: [number, number, number];
+  signalKey: keyof Omit<BiomechSignal, "gait">;
+  texture: THREE.Texture;
+  to: JointKey;
+  width?: number;
+}) {
+  const material = useMemo(() => createMuscleMaterial(texture, color), [color, texture]);
+
+  return (
+    <mesh
+      material={material}
+      ref={(mesh) => {
+        if (!mesh) return;
+        mesh.userData.update = (pose: Pose, signal: BiomechSignal) => {
+          const intensity = Number(signal[signalKey]);
+          const start = pose[from].clone().add(new THREE.Vector3(...offset));
+          const end = pose[to].clone().add(new THREE.Vector3(...offset));
+          orientBetween(mesh, start, end);
+          const thickness = width * (0.58 + intensity * 0.72);
+          mesh.scale.x = thickness;
+          mesh.scale.z = thickness * 0.72;
+          material.emissiveIntensity = 0.22 + intensity * 1.65;
+          material.opacity = 0.3 + intensity * 0.62;
+        };
+      }}
+    >
+      <sphereGeometry args={[1, 24, 18]} />
+    </mesh>
+  );
+}
+
+function DynamicBoneMass({
+  joint,
+  material,
+  radius,
+  scale = [1, 1, 1],
+}: {
+  joint: JointKey;
+  material: THREE.Material;
+  radius: number;
+  scale?: [number, number, number];
+}) {
+  return (
+    <mesh
+      castShadow
+      material={material}
+      ref={(mesh) => {
+        if (!mesh) return;
+        mesh.userData.update = (pose: Pose) => {
+          mesh.position.copy(pose[joint]);
+        };
+      }}
+      receiveShadow
+      scale={scale}
+    >
+      <sphereGeometry args={[radius, 32, 18]} />
+    </mesh>
+  );
+}
+
+function RibCage({ material }: { material: THREE.Material }) {
+  return (
+    <group
+      ref={(group) => {
+        if (!group) return;
+        group.userData.update = (pose: Pose) => {
+          group.position.copy(pose.chest).add(new THREE.Vector3(-0.02, -0.03, 0));
+        };
+      }}
+    >
+      {[0, 1, 2].map((index) => (
+        <mesh key={index} material={material} rotation={[Math.PI / 2, 0, 0]} scale={[0.22 + index * 0.045, 0.09, 0.16 + index * 0.025]} position={[0, -index * 0.075, 0]}>
+          <torusGeometry args={[1, 0.045, 10, 52]} />
+        </mesh>
+      ))}
+      <mesh material={material} position={[0.04, -0.08, 0]} scale={[0.035, 0.3, 0.035]}>
+        <sphereGeometry args={[1, 18, 12]} />
+      </mesh>
+    </group>
+  );
+}
+
+function PelvisBone({ material }: { material: THREE.Material }) {
+  return (
+    <group
+      ref={(group) => {
+        if (!group) return;
+        group.userData.update = (pose: Pose) => {
+          group.position.copy(pose.pelvis).add(new THREE.Vector3(0.01, -0.08, 0));
+        };
+      }}
+    >
+      <mesh material={material} rotation={[Math.PI / 2, 0, 0]} scale={[0.18, 0.08, 0.24]}>
+        <torusGeometry args={[1, 0.08, 12, 48]} />
+      </mesh>
+      <mesh material={material} position={[0.02, 0.02, 0]} scale={[0.16, 0.08, 0.28]}>
+        <sphereGeometry args={[1, 24, 14]} />
+      </mesh>
+    </group>
+  );
+}
+
+function createMuscleMaterial(texture: THREE.Texture, color: string) {
+  const map = texture.clone();
+  map.needsUpdate = true;
+  return new THREE.MeshStandardMaterial({
+    color,
+    map,
+    emissive: color,
+    emissiveIntensity: 0.65,
+    transparent: true,
+    opacity: 0.72,
+    roughness: 0.42,
+    metalness: 0.02,
+  });
+}
+
+function createMuscleFiberTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 192;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return new THREE.Texture();
+
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, "#5f1514");
+  gradient.addColorStop(0.45, "#c9442f");
+  gradient.addColorStop(1, "#ff9a66");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let y = -canvas.height; y < canvas.height * 2; y += 7) {
+    ctx.strokeStyle = "rgba(255, 228, 196, 0.42)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(50, y + 18, 110, y - 20, canvas.width, y + 8);
+    ctx.stroke();
+  }
+
+  for (let y = 2; y < canvas.height; y += 9) {
+    ctx.strokeStyle = "rgba(61, 8, 7, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y + 14);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2.4, 1.2);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createBoneTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return new THREE.Texture();
+
+  ctx.fillStyle = "#efe5cd";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 110; i += 1) {
+    const x = Math.random() * canvas.width;
+    const y = Math.random() * canvas.height;
+    const radius = 0.5 + Math.random() * 1.8;
+    ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,245,0.35)" : "rgba(116,92,55,0.14)";
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let y = 8; y < canvas.height; y += 18) {
+    ctx.strokeStyle = "rgba(124, 98, 64, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(32, y + 8, 82, y - 8, canvas.width, y + 4);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.6, 1.6);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function createSkinTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 96;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return new THREE.Texture();
+
+  const gradient = ctx.createRadialGradient(30, 24, 6, 48, 48, 74);
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.42, "#cfeee6");
+  gradient.addColorStop(1, "#7fb8a8");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 120; i += 1) {
+    ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.09)" : "rgba(10,40,36,0.08)";
+    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 1, 1);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1.25, 1.25);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 function ForceOverlay() {

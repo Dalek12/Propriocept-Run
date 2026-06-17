@@ -88,11 +88,21 @@ export function computeBiomechSignal(time: number, params: RunnerParams, openSim
   const dataHipRotators = openSim
     ? clamp01(openSim.muscleGroups.hipRotators * 0.72 + pelvisAlert * 0.48 + crossover * 0.26)
     : null;
+  const dataHipFlexors = openSim
+    ? clamp01(openSim.muscleGroups.hipFlexors * 0.8 + Math.max(0, Math.sin(cycle + Math.PI * 0.2)) * 0.12)
+    : null;
+  const dataQuads = openSim ? clamp01(openSim.muscleGroups.quads * 0.82 + dataLandingForce * 0.16) : null;
+  const dataHamstrings = openSim
+    ? clamp01(openSim.muscleGroups.hamstrings * 0.82 + Math.max(0, Math.sin(cycle + Math.PI * 0.7)) * 0.12)
+    : null;
   const dataSpinalStabilizers = openSim
     ? clamp01(openSim.muscleGroups.spinalStabilizers * 0.76 + torsoSystem * 0.18 + pelvisAlert * 0.34)
     : null;
   const dataCalves = openSim
     ? clamp01(openSim.muscleGroups.calves * (params.footStrike === "forefoot" ? 1 : 0.78) + toeOffPulse * 0.12)
+    : null;
+  const dataTibialisAnterior = openSim
+    ? clamp01(openSim.muscleGroups.tibialisAnterior * 0.86 + Math.max(0, Math.sin(cycle + Math.PI)) * 0.08)
     : null;
 
   return {
@@ -101,9 +111,13 @@ export function computeBiomechSignal(time: number, params: RunnerParams, openSim
     lats: clamp01(torsoSystem * params.armSwing),
     glutes: dataGlutes ?? clamp01(toeOffPulse * (0.54 + params.trunkLean * 0.28 + params.pelvisRotation * 0.22)),
     hipRotators: dataHipRotators ?? clamp01(torsoSystem * 0.55 + pelvisAlert * 0.6 + crossover * 0.35),
+    hipFlexors: dataHipFlexors ?? clamp01(Math.max(0, Math.sin(cycle + Math.PI * 0.15)) * 0.62 + params.strideLength * 0.12),
+    quads: dataQuads ?? clamp01(landingForce * 0.42 + Math.max(0, Math.sin(cycle + Math.PI * 0.05)) * 0.4),
+    hamstrings: dataHamstrings ?? clamp01(toeOffPulse * 0.34 + Math.max(0, Math.sin(cycle + Math.PI * 0.7)) * 0.42),
     spinalStabilizers:
       dataSpinalStabilizers ?? clamp01(torsoSystem * 0.5 + params.verticalBounce * 0.24 + pelvisAlert * 0.5),
     calves: dataCalves ?? clamp01(toeOffPulse * (params.footStrike === "forefoot" ? 1 : 0.74)),
+    tibialisAnterior: dataTibialisAnterior ?? clamp01(Math.max(0, Math.sin(cycle + Math.PI)) * 0.54),
     kneeLoad: clamp01(dataLandingForce * 0.58 + overstride * 0.48 + pelvisAlert * 0.3),
     landingForce: dataLandingForce,
     pelvisDropAlert: pelvisAlert,

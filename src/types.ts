@@ -60,8 +60,12 @@ export interface BiomechSignal {
   lats: number;
   glutes: number;
   hipRotators: number;
+  hipFlexors: number;
+  quads: number;
+  hamstrings: number;
   spinalStabilizers: number;
   calves: number;
+  tibialisAnterior: number;
   kneeLoad: number;
   landingForce: number;
   pelvisDropAlert: number;
